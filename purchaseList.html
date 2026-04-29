@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Submitted Purchases</title>
+    <style>
+        body {
+            font-family: Arial;
+            background: #f5f6fa;
+            padding: 30px;
+        }
+
+        .container {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            max-width: 1000px;
+            margin: auto;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+
+        th {
+            background: #f0f0f0;
+        }
+
+        button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .danger {
+            background: #f44336;
+            color: white;
+        }
+
+        .primary {
+            background: #2196F3;
+            color: white;
+        }
+
+        .items {
+            font-size: 13px;
+            color: #333;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <button class="danger" onclick="logout()" style="float:right;">Logout</button>
+    <button class="primary" onclick="goToEntry()">New Entry</button>
+
+    <h2>Submitted Purchases</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Vendor</th>
+                <th>Source</th>
+                <th>Total Amount</th>
+                <th>Items</th>
+            </tr>
+        </thead>
+        <tbody id="purchaseBody"></tbody>
+    </table>
+</div>
+
+<script>
+    const API_BASE_URL = "https://localhost:7225/api";
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+        window.location.href = "login.html";
+    }
+
+    loadPurchases();
+
+    async function loadPurchases() {
+        try {
+            const response = await fetch(`${API_BASE_URL}/Purchases`, {
+                method: "GET",
+                headers: {
+                    "Authorization": "Bearer " + token
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to load purchases");
+            }
+
+            const purchases = await response.json();
+
+            const tbody = document.getElementById("purchaseBody");
+            tbody.innerHTML = "";
+
+            purchases.forEach(purchase => {
+                const row = document.createElement("tr");
+
+                const itemsHtml = purchase.items.map(item => `
+                    <div class="items">
+                        ${item.itemName} |
+                        ${item.category} |
+                        Qty: ${item.quantity} |
+                        Unit: RM ${item.unitPrice} |
+                        Total: RM ${item.totalPrice}
+                    </div>
+                `).join("");
+
+                row.innerHTML = `
+                    <td>${purchase.purchaseDate}</td>
+                    <td>${purchase.vendorName}</td>
+                    <td>${purchase.sourceType}</td>
+                    <td>RM ${purchase.totalAmount}</td>
+                    <td>${itemsHtml}</td>
+                `;
+
+                tbody.appendChild(row);
+            });
+
+        } catch (err) {
+            console.error(err);
+            alert("Failed to load purchases.");
+        }
+    }
+
+    function goToEntry() {
+        window.location.href = "manualEntry.html";
+    }
+
+    function logout() {
+        localStorage.removeItem("token");
+        window.location.href = "login.html";
+    }
+</script>
+
+</body>
+</html>

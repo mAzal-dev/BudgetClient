@@ -1,0 +1,19 @@
+MANUAL FLOW 
+1. Upload receipt image
+2. Store image in Google Drive
+3. Show manual entry table
+4. User keys in purchase/items/category/amount
+5. Submit
+6. Save confirmed purchase data into DB
+7. Populate master Excel
+
+AUTO FLOW
+1. Upload receipt image
+2. Store image in Google Drive
+3. Save receipt metadata into DB
+4. AI processes receipt
+5. Show AI result on screen
+6. User reviews/edits/categories
+7. Confirm
+8. Save confirmed purchase data into DB
+9. Populate master Excel

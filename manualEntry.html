@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Receipt Manual Entry</title>
+    <style>
+        body {
+            font-family: Arial;
+            background: #f5f6fa;
+            padding: 30px;
+        }
+
+        .container {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            max-width: 900px;
+            margin: auto;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        input, select, button {
+            padding: 10px;
+            margin-top: 8px;
+        }
+
+        input, select {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        button.secondary {
+            background: #2196F3;
+        }
+
+        button.danger {
+            background: #f44336;
+        }
+
+        .preview img {
+            max-width: 180px;
+            margin: 10px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+
+        table {
+            width: 100%;
+            margin-top: 15px;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+
+        th {
+            background: #f0f0f0;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .section {
+            margin-top: 25px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Receipt Purchase Entry</h2>
+    <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+    <div>
+        <button type="button" class="secondary" onclick="goToPurchaseList()">← Back</button>
+    </div>
+    <div>
+        <button type="button" class="danger" onclick="logout()">Logout</button>
+    </div>
+    </div>
+
+    <!-- Upload Section -->
+    <form id="uploadForm">
+        <div>
+            <label>Receipt Date:</label>
+            <input type="date" id="receiptDate" required />
+        </div>
+
+        <div>
+            <label>Upload Receipt(s):</label>
+            <input type="file" id="receiptFile" accept="image/*" multiple required />
+        </div>
+
+        <div class="preview" id="preview"></div>
+
+        <button type="submit">Upload Receipt</button>
+    </form>
+
+    <!-- Manual Entry Section -->
+    <div id="manualEntrySection" class="section hidden">
+        <h3>Manual Purchase Entry</h3>
+        <div id="receiptProgress" style="margin-bottom:10px; font-weight:bold;"></div>
+        <div id="submittedList" style="font-size:13px; color:green; margin-bottom:10px;"></div>
+
+        <div>
+            <label>Select Uploaded Receipt:</label>
+            <select id="receiptSelect"></select>
+        </div>
+
+        <div>
+            <label>Vendor / Shop Name:</label>
+            <input type="text" id="vendorName" placeholder="Example: Lotus's, Mydin, Shopee" />
+        </div>
+
+        <table id="itemsTable">
+            <thead>
+                <tr>
+                    <th>Item Name</th>
+                    <th>Category</th>
+                    <th>Quantity</th>
+                    <th>Total Price (RM)</th>
+                    <th>Unit Price (RM)</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="itemsBody">
+            </tbody>
+        </table>
+
+        <button type="button" class="secondary" onclick="addItemRow()">Add Item</button>
+        <button type="button" onclick="submitManualEntry()">Submit Manual Entry</button>
+    </div>
+</div>
+
+<script>
+    const API_BASE_URL = "https://localhost:7225/api";
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+        window.location.href = "login.html";
+    }
+    
+
+    const fileInput = document.getElementById("receiptFile");
+    const preview = document.getElementById("preview");
+    const receiptSelect = document.getElementById("receiptSelect");
+    const manualEntrySection = document.getElementById("manualEntrySection");
+    const itemsBody = document.getElementById("itemsBody");
+    let uploadedReceipts = [];
+    let currentReceiptIndex = 0;
+    let submittedReceipts = [];
+
+    fileInput.addEventListener("change", function () {
+        preview.innerHTML = "";
+
+        Array.from(this.files).forEach(file => {
+            const reader = new FileReader();
+
+            reader.onload = function (e) {
+                const img = document.createElement("img");
+                img.src = e.target.result;
+                preview.appendChild(img);
+            };
+
+            reader.readAsDataURL(file);
+        });
+    });
+
+    document.getElementById("uploadForm").addEventListener("submit", async function (e) {
+        e.preventDefault();
+
+        const files = fileInput.files;
+        const date = document.getElementById("receiptDate").value;
+
+        if (files.length === 0) {
+            alert("Please select at least one receipt.");
+            return;
+        }
+
+        const formData = new FormData();
+
+        for (let i = 0; i < files.length; i++) {
+            formData.append("files", files[i]);
+        }
+
+        formData.append("date", date);
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/Upload`, {
+                method: "POST",
+                headers: {
+                    "Authorization": "Bearer " + token
+                },
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error("Upload failed");
+            }
+
+            const result = await response.json();
+            console.log("Upload result:", result);
+
+            uploadedReceipts = result.receipts;
+            currentReceiptIndex = 0;
+            submittedReceipts = [];
+
+            receiptSelect.innerHTML = "";
+
+            uploadedReceipts.forEach((receipt, index) => {
+                const option = document.createElement("option");
+                option.value = receipt.id;
+                option.textContent = `Receipt ${index + 1} of ${uploadedReceipts.length} - ${receipt.receiptDate}`;
+                receiptSelect.appendChild(option);
+            });
+
+            manualEntrySection.classList.remove("hidden");
+
+            loadCurrentReceipt();
+
+            alert("Receipt uploaded. Please enter purchase details.");
+
+        } catch (err) {
+            console.error(err);
+            alert("Upload failed. Try again.");
+        }
+    });
+
+    function addItemRow() {
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+        <td>
+            <input type="text" class="itemName" placeholder="Item name" required />
+        </td>
+        <td>
+            <select class="category">
+                <option value="">Select category</option>
+                <option value="Food">Food</option>
+                <option value="Fruit">Fruit</option>
+                <option value="AirKotak">Air Kotak</option>
+                <option value="Packaging">Packaging</option>
+                <option value="Other">Other</option>
+            </select>
+        </td>
+        <td>
+            <input type="number" class="quantity" value="1" min="1" required />
+        </td>
+        <td>
+            <input type="number" class="totalPrice" placeholder="0.00" step="0.01" min="0.00" required />
+        </td>
+        <td>
+            <input type="number" class="unitPrice" readonly />
+        </td>
+        <td>
+            <button type="button" class="danger" onclick="removeRow(this)">Remove</button>
+        </td>
+    `;
+
+    itemsBody.appendChild(row);
+
+    attachCalculationEvents(row);
+    }
+
+    function removeRow(button) {
+        button.closest("tr").remove();
+    }
+
+    function attachCalculationEvents(row) {
+    const qtyInput = row.querySelector(".quantity");
+    const totalInput = row.querySelector(".totalPrice");
+    const unitInput = row.querySelector(".unitPrice");
+
+    function calculate() {
+        const qty = parseFloat(qtyInput.value) || 0;
+        const total = parseFloat(totalInput.value) || 0;
+
+        if (qty > 0) {
+            const unit = total / qty;
+            unitInput.value = unit.toFixed(2);
+        } else {
+            unitInput.value = "";
+        }
+    }
+    function formatTotal() {
+        const total = parseFloat(totalInput.value);
+        if (!isNaN(total)) {
+            totalInput.value = total.toFixed(2);
+        }
+    }
+
+    qtyInput.addEventListener("input", calculate);
+    totalInput.addEventListener("input", calculate);
+    totalInput.addEventListener("blur", formatTotal);
+    } 
+    
+    function loadCurrentReceipt() {
+        const currentReceipt = uploadedReceipts[currentReceiptIndex];
+
+        if (!currentReceipt) {
+            finishAllReceipts();
+            return;
+        }
+
+        receiptSelect.value = currentReceipt.id;
+
+        document.getElementById("receiptProgress").textContent =
+            `Currently entering: Receipt ${currentReceiptIndex + 1} of ${uploadedReceipts.length}`;
+
+        updateSubmittedList();
+
+        document.getElementById("vendorName").value = "";
+
+        itemsBody.innerHTML = "";
+        addItemRow();
+    }
+
+    function updateSubmittedList() {
+        const submittedList = document.getElementById("submittedList");
+
+        if (submittedReceipts.length === 0) {
+            submittedList.textContent = "No receipts submitted yet.";
+            submittedList.style.color = "gray";
+            return;
+        }
+
+        submittedList.style.color = "green";
+        submittedList.textContent =
+            `Submitted: ${submittedReceipts.map(x => `Receipt ${x}`).join(", ")}`;
+    }
+
+    function finishAllReceipts() {
+        alert("All uploaded receipts have been completed.");
+
+        document.getElementById("receiptProgress").textContent = "All receipts completed.";
+        updateSubmittedList();
+
+        document.getElementById("vendorName").value = "";
+        itemsBody.innerHTML = "";
+        receiptSelect.innerHTML = "";
+
+        fileInput.value = "";
+        preview.innerHTML = "";
+
+        window.location.href = "purchaseList.html";
+    }
+
+    async function submitManualEntry() {
+        const receiptId = receiptSelect.value;
+        const vendorName = document.getElementById("vendorName").value;
+
+        const rows = itemsBody.querySelectorAll("tr");
+
+        const items = Array.from(rows).map(row => {
+            return {
+                itemName: row.querySelector(".itemName").value,
+                category: row.querySelector(".category").value,
+                quantity: parseInt(row.querySelector(".quantity").value),
+                totalPrice: parseFloat(row.querySelector(".totalPrice").value)
+            };
+        });
+
+        if (!receiptId) {
+            alert("Please select a receipt.");
+            return;
+        }
+
+        if (!vendorName) {
+            alert("Please enter vendor/shop name.");
+            return;
+        }
+
+        if (items.length === 0) {
+            alert("Please add at least one item.");
+            return;
+        }
+
+        const requestBody = {
+            receiptId: receiptId,
+            vendorName: vendorName,
+            sourceType: "manual",
+            items: items
+        };
+
+        console.log("Submitting manual entry:", requestBody);
+
+        try {
+            //const token = localStorage.getItem("token");
+            const response = await fetch(`${API_BASE_URL}/ManualPurchase`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            //console.log("API response status:", response.status);
+            //console.log("API response body:", await response.text());
+
+            if (!response.ok) {
+                throw new Error("Manual entry failed");
+            }
+
+            const result = await response.json();
+            console.log("Manual entry result:", result);
+
+            alert(`Receipt ${currentReceiptIndex + 1} saved successfully.`);
+
+            submittedReceipts.push(currentReceiptIndex + 1);
+
+            currentReceiptIndex++;
+
+            if (currentReceiptIndex < uploadedReceipts.length) {
+                loadCurrentReceipt();
+            } else {
+                finishAllReceipts();
+            }
+
+        } catch (err) {
+            console.error(err);
+            alert("Failed to save manual entry.");
+        }
+    }
+    function logout() {
+        localStorage.removeItem("token");
+        window.location.href = "login.html";
+    }
+    function goToPurchaseList() {
+        window.location.href = "purchaseList.html";
+    }
+</script>
+
+</body>
+</html>
