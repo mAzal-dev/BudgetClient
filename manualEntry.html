@@ -205,7 +205,8 @@
             });
 
             if (!response.ok) {
-                throw new Error("Upload failed");
+                const errorText = await response.text();
+                throw new Error(errorText || "Upload failed");
             }
 
             const result = await response.json();
@@ -232,7 +233,7 @@
 
         } catch (err) {
             console.error(err);
-            alert("Upload failed. Try again.");
+            alert(err.message || "Upload failed. Try again.");
         }
     });
 
