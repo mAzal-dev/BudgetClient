@@ -45,6 +45,18 @@
             background: #f44336;
         }
 
+        button:disabled {
+            background: #9e9e9e;
+            cursor: not-allowed;
+            opacity: 0.8;
+        }
+
+        .loading-message {
+            color: #555;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
         .preview img {
             max-width: 180px;
             margin: 10px;
@@ -103,7 +115,8 @@
 
         <div class="preview" id="preview"></div>
 
-        <button type="submit">Upload Receipt</button>
+        <button type="submit" id="uploadButton">Upload Receipt</button>
+        <div id="uploadLoading" class="loading-message hidden">Uploading receipt...</div>
     </form>
 
     <!-- Manual Entry Section -->
@@ -137,8 +150,9 @@
             </tbody>
         </table>
 
-        <button type="button" class="secondary" onclick="addItemRow()">Add Item</button>
-        <button type="button" onclick="submitManualEntry()">Submit Manual Entry</button>
+        <button type="button" class="secondary" id="addItemButton" onclick="addItemRow()">Add Item</button>
+        <button type="button" id="submitManualButton" onclick="submitManualEntry()">Submit Manual Entry</button>
+        <div id="submitLoading" class="loading-message hidden">Saving receipt...</div>
     </div>
 </div>
 
@@ -156,6 +170,11 @@
     const receiptSelect = document.getElementById("receiptSelect");
     const manualEntrySection = document.getElementById("manualEntrySection");
     const itemsBody = document.getElementById("itemsBody");
+    const uploadButton = document.getElementById("uploadButton");
+    const uploadLoading = document.getElementById("uploadLoading");
+    const addItemButton = document.getElementById("addItemButton");
+    const submitManualButton = document.getElementById("submitManualButton");
+    const submitLoading = document.getElementById("submitLoading");
     let uploadedReceipts = [];
     let currentReceiptIndex = 0;
     let submittedReceipts = [];
@@ -196,6 +215,8 @@
         formData.append("date", date);
 
         try {
+            setUploadLoading(true);
+
             const response = await fetch(`${API_BASE_URL}/Upload`, {
                 method: "POST",
                 headers: {
@@ -234,6 +255,8 @@
         } catch (err) {
             console.error(err);
             alert(err.message || "Upload failed. Try again.");
+        } finally {
+            setUploadLoading(false);
         }
     });
 
@@ -396,6 +419,7 @@
         console.log("Submitting manual entry:", requestBody);
 
         try {
+            setSubmitLoading(true);
             //const token = localStorage.getItem("token");
             const response = await fetch(`${API_BASE_URL}/ManualPurchase`, {
                 method: "POST",
@@ -431,8 +455,24 @@
         } catch (err) {
             console.error(err);
             alert("Failed to save manual entry.");
+        } finally {
+            setSubmitLoading(false);
         }
     }
+    function setUploadLoading(isLoading) {
+        uploadButton.disabled = isLoading;
+        fileInput.disabled = isLoading;
+        uploadButton.textContent = isLoading ? "Uploading..." : "Upload Receipt";
+        uploadLoading.classList.toggle("hidden", !isLoading);
+    }
+
+    function setSubmitLoading(isLoading) {
+        addItemButton.disabled = isLoading;
+        submitManualButton.disabled = isLoading;
+        submitManualButton.textContent = isLoading ? "Saving..." : "Submit Manual Entry";
+        submitLoading.classList.toggle("hidden", !isLoading);
+    }
+
     function logout() {
         localStorage.removeItem("token");
         window.location.href = "login.html";
